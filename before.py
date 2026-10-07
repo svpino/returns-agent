@@ -37,7 +37,6 @@ async def workflow(store: Store, message: str):
 def demo(store: Store):
     tools = show_reader(build_agent(store), "ORD-1001")
     print(tools["refund_order"]("ORD-1001"))
-    print("The backend correctly enforces $80/original card, but the reader can act.")
 
 
 if __name__ == "__main__":
