@@ -18,7 +18,7 @@ from typing import Literal
 from google.adk.agents import Agent
 from pydantic import BaseModel, ConfigDict, Field
 
-from common import MODEL, Store, cli, run, show_reader
+from common import MODEL, REQUEST, Store, cli, run
 
 
 class ReturnRequest(BaseModel):
@@ -104,15 +104,13 @@ async def workflow(store: Store, message: str):
 def demo(store: Store):
     # Deterministic stand-ins for model outputs; not a live injection test.
     request = ReturnRequest(order_id="ORD-1001", action="lookup")
-    print("Frozen intake decision:", request.model_dump())
-    tools = show_reader(build_checker(store), request.order_id)
+    print("Customer:", REQUEST)
+    tools = {tool.__name__: tool for tool in build_checker(store).tools}
     assert "refund_order" not in tools
-    print("BLOCKED: the reading agent has no refund tool or delegation tool.")
     order = store.lookup_order(request.order_id)
     status = OrderStatus(**{key: order[key] for key in OrderStatus.model_fields})
     assert not should_refund(request, status)
-    print("Typed handoff:", status.model_dump())
-    print("Execution stage skipped: the original request was only a lookup.")
+    print("Return status:", status.model_dump_json())
     assert not store.payments
 
 
