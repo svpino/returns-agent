@@ -95,7 +95,6 @@ async def workflow(store: Store, message: str):
     status = await structured(build_checker(store), request.order_id, OrderStatus)
     print("Return status:", status.model_dump_json())
     if not should_refund(request, status):
-        print("No refund requested or return not eligible; execution stage skipped.")
         return
     # Fresh session: no customer prose, order notes, or checker narrative.
     await run(build_processor(store, request), request.model_dump_json())

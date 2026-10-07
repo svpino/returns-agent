@@ -79,22 +79,6 @@ async def run(agent: Agent, message: str):
         return await runner.run_debug(message, verbose=True)
 
 
-
-def show_reader(agent: Agent, order_id: str) -> dict:
-    """Show the reading agent's exposed tools and the same adversarial input."""
-    tools = {tool.__name__: tool for tool in agent.tools}
-    print("Customer:", REQUEST)
-    print("Reader's tools:", list(tools))
-    order = tools["lookup_order"](order_id)
-    print("Return status:", json.dumps({key: order[key] for key in (
-        "order_id", "warehouse_received", "return_approved", "return_deadline", "refund_eligible",
-    )}))
-    print("Order notes:", order["notes"])
-    print("Assume the reading model now makes a bad decision and requests a refund.")
-    print("This is a capability demonstration, NOT a successful live injection.")
-    return tools
-
-
 def cli(
     workflow: Callable[[Store, str], Awaitable[None]],
     demo: Callable[[Store], None],

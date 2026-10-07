@@ -11,9 +11,11 @@ All data/payments are fictional. Both scripts use the same common.py backend;
 the comparison changes agent architecture, not refund correctness.
 """
 
+import json
+
 from google.adk.agents import Agent
 
-from common import MODEL, Store, cli, run, show_reader
+from common import MODEL, REQUEST, Store, cli, run
 
 
 def build_agent(store: Store) -> Agent:
@@ -35,8 +37,14 @@ async def workflow(store: Store, message: str):
 
 
 def demo(store: Store):
-    tools = show_reader(build_agent(store), "ORD-1001")
-    print(tools["refund_order"]("ORD-1001"))
+    # Deterministic stand-in for a bad model decision; not a live injection test.
+    print("Customer:", REQUEST)
+    tools = {tool.__name__: tool for tool in build_agent(store).tools}
+    order = tools["lookup_order"]("ORD-1001")
+    print("Return status:", json.dumps({key: order[key] for key in (
+        "return_approved", "warehouse_received", "refund_eligible",
+    )}))
+    tools["refund_order"]("ORD-1001")
 
 
 if __name__ == "__main__":
