@@ -60,7 +60,7 @@ Live runs call Google's model API and may incur charges. Model behavior can vary
 
 ```mermaid
 flowchart LR
-    Customer --> Agent[Returns agent]
+    Customer --> Agent[Return agent]
     Agent --> Lookup[Order lookup]
     Agent --> Refund[Refund tool]
 ```
@@ -74,13 +74,13 @@ flowchart LR
     Customer --> Intake[Intake agent: no tools]
     Intake --> Checker[Order checker: lookup only]
     Checker --> Gate[Application routing]
-    Gate -->|Lookup or unapproved return|Status[Return status]
-    Gate -->|Refund requested and return approved|Processor[Refund processor: bound order]
+    Gate -->|Lookup or ineligible return|Status[Return status]
+    Gate -->|Refund requested and return eligible|Processor[Refund processor: bound order]
 ```
 
 1. Intake extracts the order ID and action before any order notes are read. Application code keeps this request immutable.
-2. The checker receives only the order ID, can only look up orders, and returns a validated approval boolean.
-3. Application code checks the saved action and returned status. It creates the refund processor only when a refund was requested and the return is approved.
+2. The checker receives only the order ID, can only look up orders, and returns a validated approval, warehouse-receipt, and refund-eligibility booleans.
+3. Application code checks the saved action and returned status. It creates the refund processor only when a refund was requested and the return is approved and within its deadline.
 4. The processor gets a fresh context without the order notes. Its tool is bound to the intake order ID; the model cannot supply a different target.
 
 Each stage runs in a separate ADK session. Extra fields or invalid structured responses stop the workflow.
@@ -91,11 +91,11 @@ Each stage runs in a separate ADK session. Extra fields or invalid structured re
 | --- | --- |
 | The agent reading notes can issue refunds. | The checker has only the lookup tool and no delegation tool. |
 | Customer intent and order notes share one context. | Intake determines the action before notes are read. |
-| Untrusted notes remain in the payment decision context. | Only a validated approval boolean leaves the checker; the processor never sees the notes. |
+| Untrusted notes remain in the payment decision context. | Only a validated approval, warehouse-receipt, and refund-eligibility booleans leaves the checker; the processor never sees the notes. |
 | A status request still exposes refund capability. | Application routing skips the processor for a lookup. |
 | The reader can choose the refund target. | Application code binds the refund tool to the saved intake order ID. |
 
-Both versions check ownership and return approval, use the stored amount and payment destination, and prevent duplicate refunds within one run. These shared backend protections are not architectural differences.
+Both versions check ownership, return approval, and the return deadline, use the stored amount and payment destination, and prevent duplicate refunds within one run. These shared backend protections are not architectural differences.
 
 ## Files
 
@@ -109,8 +109,31 @@ The scripts declare `google-adk==2.6.0` in their inline dependency metadata. Kee
 
 All orders and payments are fictional and stored in memory. State resets for each command. The signed-in customer is a fixed fixture, not a real authentication system.
 
-The after architecture contains a bad decision by the order reader. It does not guarantee correct intake: intake can still misunderstand a customer. The checker can also report an incorrect status; the backend independently checks approval before refunding.
+The after architecture contains a bad decision by the order reader. It does not guarantee correct intake: intake can still misunderstand a customer. The checker can also report an incorrect status; the backend independently checks approval and the deadline before refunding.
 
 These are application-level tool and context boundaries inside one Python process, not separate service identities or operating-system isolation. Production would need real authentication, appropriate action confirmation, durable payment idempotency, and service permissions.
 
 Adding agents alone does not create these protections. Restricted tools, separate contexts, validated handoffs, and application-controlled routing do.
+
+## Return data and checks
+
+`lookup_order` returns `order_id`, `warehouse_received`, `return_approved`,
+`return_deadline`, and `refund_eligible`, along with the item, amount, and notes.
+Receipt and approval are separate facts. Eligibility requires approval and an
+open return window; receipt is reported separately and is not an extra eligibility rule.
+
+The shared `is_return_eligible` function checks approval and the deadline both at
+lookup time and again before a refund. Deadlines are inclusive calendar dates
+using the computer's local date. Demo fixtures start with a deadline 30 days from
+each run so the demo does not expire.
+
+Both reading agents are instructed to compare the returned order ID with the
+requested ID. This model check is not a guaranteed boundary. The backend enforces
+ownership in both versions, and the after processor's `refund_order()` tool is
+bound to the intake order ID. Unlike the before tool, it accepts no arguments.
+
+Run the local checks without model calls:
+
+```bash
+uv run --with google-adk==2.6.0 python -m unittest discover -s tests -v
+```
